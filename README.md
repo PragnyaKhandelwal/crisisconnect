@@ -25,6 +25,23 @@ Optional env: `DATABASE_URL` (Postgres), `GROQ_API_KEY=... npm start` makes free
 - Depot inventory is editable in the dashboard; the AI plan recomputes instantly.
 - **AI vs first-come-first-served panel** compares strategies on the live data.
 
+## Security: coordinator login
+Set `ADMIN_KEY` (the coordinator password). Anyone can *submit* requests and view the dashboard; only a logged-in coordinator can
+dispatch supplies, add depots and edit inventory. Login returns a signed 12-hour token; failed logins are rate limited.
+With no `ADMIN_KEY` the app runs in open dev mode. Use a long random password in production.
+
+## Road routing
+Distances and drive-time ETAs come from OSRM (`OSRM_URL`, defaults to the public demo server) and fall back to straight-line
+distance if it is unreachable. The dashboard shows which mode is active.
+
+## SMS / WhatsApp intake (Twilio)
+1. In Twilio, point your number's (or WhatsApp sandbox's) *"A message comes in"* webhook to `POST https://<your-app>/api/sms`.
+2. Set `PUBLIC_URL` (your app's https URL) and `TWILIO_AUTH_TOKEN` so forged webhook calls are rejected.
+3. A victim texts e.g. *"Need water for 40 people near Karol Bagh, Delhi"*. The message is triaged (Groq when configured),
+   the place name is geocoded (or a WhatsApp shared location is used), a request is created, and Twilio replies with the
+   request number, priority and first planned action. Phone numbers are stored masked (last 4 digits only).
+Optional: `GEOCODE_COUNTRY=in` limits address lookup to a country.
+
 ## How it works
 - Score (0-100) = category severity + urgency*8 + people*0.4 + distance + supply scarcity + waiting time → CRITICAL/HIGH/MEDIUM/LOW.
 - Global allocator walks requests by priority, serving each from the nearest depots (splitting across depots),

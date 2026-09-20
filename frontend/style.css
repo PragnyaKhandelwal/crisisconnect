@@ -61,3 +61,8 @@ input.sm { width:70px; padding:3px 6px; font-size:12px; margin-top:2px; }
 #depot-form b { flex-basis:100%; font-size:12px; } #depot-form input { flex:1 1 90px; }
 #toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%) translateY(120px); background:#14532d; color:#dcfce7; border:1px solid var(--green); padding:10px 16px; border-radius:10px; max-width:90vw; transition:transform .25s; z-index:1000; box-shadow:0 6px 24px #0008; }
 #toast.show { transform:translateX(-50%) translateY(0); } #toast.bad { background:#7f1d1d; color:#fee2e2; border-color:var(--red); }
+
+body:not(.coord) .coord-only { display: none !important; }
+input.sm:disabled { opacity:.55; cursor:not-allowed; }
+dialog { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:12px; padding:18px; width:min(360px,92vw); }
+dialog::backdrop { background:#000a; } dialog input { width:100%; margin:8px 0; } dialog .row { display:flex; gap:8px; justify-content:flex-end; }

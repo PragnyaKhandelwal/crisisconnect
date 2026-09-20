@@ -4,7 +4,7 @@
   "description": "AI-assisted disaster relief request prioritization and allocation",
   "scripts": {
     "start": "node backend/server.js",
-    "test": "node backend/test.js"
+    "test": "node backend/test.js && node backend/test-features.js"
   },
   "engines": {
     "node": ">=18"

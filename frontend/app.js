@@ -9,7 +9,10 @@ let picked = null, pickMarker = null, data = null, selected = null, filter = 'al
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const post = (p, b) => fetch(API + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) });
+let token = '', coord = false, authRequired = false;
+try { token = localStorage.getItem('cc_token') || ''; } catch { /* storage blocked */ }
+const saveToken = t => { token = t; try { t ? localStorage.setItem('cc_token', t) : localStorage.removeItem('cc_token'); } catch { /* ignore */ } };
+const post = (p, b) => fetch(API + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: JSON.stringify(b || {}) });
 
 map.on('click', e => {
   picked = e.latlng;
@@ -44,10 +47,11 @@ function render() {
   ].map(([l, v]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
 
   // editable inventory; don't redraw while the user is typing in one of the boxes
+  const dis = coord ? '' : 'disabled title="Coordinator login required"';
   if (!document.activeElement?.dataset?.k) {
-    const cell = (d, k, label, val, after) => `<div>${label}<br><input class="sm" type="number" min="0" data-d="${d.id}" data-k="${k}" value="${val}"><br><span class="muted">${after}</span></div>`;
+    const cell = (d, k, label, val, after) => `<div>${label}<br><input class="sm" type="number" min="0" data-d="${d.id}" data-k="${k}" value="${val}" ${dis}><br><span class="muted">${after}</span></div>`;
     $('depots').innerHTML = depots.map(d => `
-      <div class="depot"><div><b>${esc(d.name)}</b><br><span class="muted">volunteer teams</span><br><input class="sm" type="number" min="0" data-d="${d.id}" data-k="volunteers" value="${d.volunteers}"></div>
+      <div class="depot"><div><b>${esc(d.name)}</b><br><span class="muted">volunteer teams</span><br><input class="sm" type="number" min="0" data-d="${d.id}" data-k="volunteers" value="${d.volunteers}" ${dis}></div>
       ${['water', 'food', 'blankets', 'medical'].map(k => cell(d, k, k, d.stock[k], 'after plan: ' + d.remaining[k])).join('')}</div>`).join('')
       || '<p class="hint">No depots yet. Add one below.</p>';
   }
@@ -58,6 +62,7 @@ function render() {
   open.forEach(r => L.circleMarker([r.lat, r.lng], { radius: 6 + Math.min(r.people / 6, 9), color: COLORS[r.type], fillColor: COLORS[r.type], fillOpacity: .65, weight: r.id === selected ? 4 : 1 })
     .bindTooltip(`#${r.id} ${r.typeLabel} · ${r.people} people · ${r.priority}`).on('click', () => select(r.id)).addTo(layer));
   drawRoutes();
+  $('routing').textContent = data.routing && data.routing.live ? '🛣 Road distances & drive-time ETAs (OSRM)' : 'Straight-line distances (road data unavailable)';
 
   const shown = requests.filter(r => filter === 'all' || (filter === 'dispatched' ? r.status === 'dispatched'
     : filter === 'unmet' ? r.coverage === 'unmet' && r.status === 'open' : r.priority === filter && r.status === 'open'));
@@ -72,7 +77,7 @@ function card(r) {
       <span class="badge ${done ? 'DISPATCHED' : r.priority}">${done ? 'DISPATCHED' : `${r.priority} · ${r.score}`}</span></h3>
     <div class="meta">${r.people} people${r.note ? ' · ' + esc(r.note) : ''}${done ? '' : `<br>${r.distanceKm} km from supply · needs ${r.need} ${UNITS[r.type]}`}</div>
     ${done ? '' : `<ul>${r.plan.map(p => `<li>${esc(p)}</li>`).join('')}</ul><div class="why"><b>Why this priority:</b>${bd}</div>
-      ${r.allocated ? `<button data-dispatch="${r.id}">Approve &amp; dispatch</button>` : ''}`}
+      ${r.allocated ? `<button class="coord-only" data-dispatch="${r.id}">Approve &amp; dispatch</button>` : ''}`}
   </div>`;
 }
 
@@ -115,6 +120,7 @@ function toast(msg, bad) {
 async function send(path, body) {
   try {
     const res = await post(path, body), j = await res.json().catch(() => ({}));
+    if (res.status === 401) { saveToken(''); setCoord(false); toast('Coordinator login required.', true); $('login').showModal(); return null; }
     if (!res.ok) { toast(j.error || 'Request failed', true); return null; }
     await refresh();
     return j;
@@ -193,5 +199,27 @@ const es = new EventSource(API + '/stream');
 es.onopen = () => $('live').classList.add('on');
 es.onerror = () => $('live').classList.remove('on');
 es.onmessage = () => refresh().catch(() => {});
+// ---- coordinator login ----
+function setCoord(v) {
+  coord = v; document.body.classList.toggle('coord', v);
+  const b = $('btn-login'); b.hidden = !authRequired; b.textContent = v ? 'Log out' : 'Coordinator login';
+  if (data) { document.activeElement?.blur?.(); render(); }
+}
+async function checkMe() {
+  try {
+    const r = await (await fetch(API + '/me', { headers: token ? { Authorization: 'Bearer ' + token } : {} })).json();
+    authRequired = r.authRequired; setCoord(!r.authRequired || r.loggedIn);
+  } catch { /* offline: stay read-only */ }
+}
+$('btn-login').onclick = () => { if (coord) { saveToken(''); setCoord(false); toast('Logged out.'); } else $('login').showModal(); };
+$('login-cancel').onclick = () => $('login').close();
+$('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const res = await fetch(API + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('pw').value }) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) return toast(j.error || 'Login failed', true);
+  saveToken(j.token); $('pw').value = ''; $('login').close(); await checkMe(); toast('Logged in as coordinator.');
+});
+checkMe();
 refresh().catch(() => toast('Cannot reach the server.', true));
 setInterval(() => refresh().catch(() => {}), 5000);

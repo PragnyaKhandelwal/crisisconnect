@@ -14,13 +14,17 @@ function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// Pluggable distance/ETA (roads.js swaps in real road data; default is straight-line).
+let dist = haversineKm, eta = () => null;
+const setDistance = (d, e) => { dist = d; eta = e || (() => null); };
+
 const needed = r => (r.type === 'medical' ? Math.max(1, Math.ceil(r.people / 5)) : r.people * TYPE_INFO[r.type].perPerson);
 const tier = s => (s >= 75 ? 'CRITICAL' : s >= 60 ? 'HIGH' : s >= 45 ? 'MEDIUM' : 'LOW');
 
 // Priority score with a human-readable breakdown (explainable).
 function score(req, depots, now = Date.now()) {
   const t = TYPE_INFO[req.type], need = needed(req);
-  const stocked = depots.filter(d => (d.stock[req.type] || 0) > 0).map(d => haversineKm(req, d)).sort((a, b) => a - b);
+  const stocked = depots.filter(d => (d.stock[req.type] || 0) > 0).map(d => dist(req, d)).sort((a, b) => a - b);
   const km = stocked.length ? stocked[0] : 50;
   const total = depots.reduce((n, d) => n + (d.stock[req.type] || 0), 0);
   const scarcity = Math.max(0, 1 - total / Math.max(need * 4, 1)); // supply vs. demand
@@ -50,12 +54,12 @@ function allocateAll(requests, depots, now = Date.now(), order = 'priority') {
   const byId = new Map();
   open.forEach(({ r, s }, i) => {
     const t = TYPE_INFO[r.type], need = needed(r);
-    const byDist = depots.map(d => ({ d, km: haversineKm(r, d) })).sort((a, b) => a.km - b.km);
+    const byDist = depots.map(d => ({ d, km: dist(r, d), min: eta(r, d) })).sort((a, b) => a.km - b.km);
     let left = need; const assignments = [];
-    for (const { d, km } of byDist) {
+    for (const { d, km, min } of byDist) {
       if (left <= 0) break;
       const q = Math.min(left, stock[d.id][r.type] || 0);
-      if (q > 0) { stock[d.id][r.type] -= q; left -= q; assignments.push({ depotId: d.id, depotName: d.name, qty: q, km: +km.toFixed(1) }); }
+      if (q > 0) { stock[d.id][r.type] -= q; left -= q; assignments.push({ depotId: d.id, depotName: d.name, qty: q, km: +km.toFixed(1), etaMin: min == null ? null : Math.round(min) }); }
     }
     const allocated = need - left;
     const farKm = assignments.length ? Math.max(...assignments.map(a => a.km)) : s.km;
@@ -66,8 +70,8 @@ function allocateAll(requests, depots, now = Date.now(), order = 'priority') {
     }
     const coverage = allocated === 0 ? 'unmet' : left > 0 ? 'partial' : 'covered';
     const plan = assignments.map(a => r.type === 'medical'
-      ? `Dispatch ${a.qty} medical team${a.qty > 1 ? 's' : ''} from ${a.depotName} (${a.km} km)`
-      : `Allocate ${a.qty} ${t.unit} from ${a.depotName} (${a.km} km)`);
+      ? `Dispatch ${a.qty} medical team${a.qty > 1 ? 's' : ''} from ${a.depotName} (${a.km} km${a.etaMin != null ? ', ~' + a.etaMin + ' min' : ''})`
+      : `Allocate ${a.qty} ${t.unit} from ${a.depotName} (${a.km} km${a.etaMin != null ? ', ~' + a.etaMin + ' min' : ''})`);
     if (volunteer) plan.push(`Dispatch volunteer team from ${volunteer.depotName}`);
     if (left > 0) plan.push(`Shortfall: ${left} ${t.unit} - request resupply / escalate`);
     if (s.priority === 'CRITICAL') plan.push('Notify coordinator immediately');
@@ -88,4 +92,4 @@ function metrics(plan) {
   };
 }
 
-module.exports = { metrics, TYPE_INFO, haversineKm, needed, score, tier, allocateAll };
+module.exports = { setDistance, metrics, TYPE_INFO, haversineKm, needed, score, tier, allocateAll };

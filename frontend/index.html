@@ -12,7 +12,8 @@
   <div><h1>🆘 CrisisConnect</h1><p>Turn chaotic emergency requests into an optimal resource-allocation plan</p></div>
   <div class="actions">
     <span id="live" class="live">● live</span>
-    <button id="btn-all" class="primary">Approve full plan</button>
+    <button id="btn-login" class="ghost" hidden>Coordinator login</button>
+    <button id="btn-all" class="primary coord-only">Approve full plan</button>
   </div>
 </header>
 
@@ -30,13 +31,13 @@
       <span><i class="dot" style="background:#eab308"></i>Food shortage</span>
       <span><i class="dot" style="background:#3b82f6"></i>Blankets</span>
       <span><i class="dot" style="background:#22c55e"></i>Resources available</span>
-      <span class="muted">Click a request to see its supply route</span>
+      <span id="routing" class="muted"></span>
     </div>
 
     <div class="panel">
       <h2>Depots &amp; inventory <small>(edit the numbers to match real stock; "after plan" = left once the plan is executed)</small></h2>
       <div id="depots"></div>
-      <form id="depot-form">
+      <form id="depot-form" class="coord-only">
         <b>Add depot at the selected location:</b>
         <input name="name" placeholder="Depot name" required>
         <input name="water" type="number" min="0" placeholder="Water L">
@@ -83,6 +84,14 @@
   </aside>
 </main>
 
+<dialog id="login">
+  <form id="login-form" method="dialog">
+    <h2>Coordinator login</h2>
+    <p class="hint">Only coordinators can dispatch supplies and edit depot inventory.</p>
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
+    <div class="row"><button type="button" id="login-cancel" class="ghost">Cancel</button><button class="primary">Log in</button></div>
+  </form>
+</dialog>
 <div id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js"></script>
