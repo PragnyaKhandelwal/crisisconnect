@@ -11,7 +11,7 @@ Turns hundreds of chaotic emergency requests into an organized, explainable reso
 npm start      # http://localhost:3000  (50 demo requests preloaded)
 npm test       # unit + end-to-end API tests
 ```
-Optional: `GROQ_API_KEY=... npm start` makes free-text triage use Groq (Llama 3.3, free tier; falls back to rules).
+Optional: `GROQ_API_KEY=... npm start` makes free-text triage use Groq (gpt-oss-20b, free tier; falls back to rules).
 
 ## Demo script
 1. Open the dashboard: map of 50 requests (red medical / orange water / yellow food / blue blankets / green depots).

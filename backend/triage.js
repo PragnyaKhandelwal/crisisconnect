@@ -1,4 +1,4 @@
-// Free-text -> structured request. Uses Groq (Llama) when GROQ_API_KEY is set, else a rule-based parser.
+// Free-text -> structured request. Uses Groq when GROQ_API_KEY is set, else a rule-based parser.
 const TYPES = {
   medical: /medic|doctor|injur|bleed|hospital|ambulance|insulin|pregnan|unconscious|wound|fracture|heart/i,
   water: /water|thirst|drink/i,
@@ -27,7 +27,7 @@ async function triage(text) {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + key, 'content-type': 'application/json' },
         body: JSON.stringify({
-          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
           temperature: 0,
           response_format: { type: 'json_object' },
           messages: [{ role: 'user', content: 'Extract a disaster relief request from this message (any language). Reply with ONLY JSON: {"type":"water|food|blankets|medical","people":int,"urgency":1-5,"note":"short English summary"}.\n\nMessage: ' + text }],
