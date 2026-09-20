@@ -1,6 +1,6 @@
 const API = location.protocol === 'file:' ? 'http://localhost:3000/api' : '/api';
 const COLORS = { medical: '#ef4444', water: '#f97316', food: '#eab308', blankets: '#3b82f6' };
-const UNITS = { medical: 'teams', water: 'L water', food: 'meals', blankets: 'blankets' };
+const UNITS = { medical: 'medical team(s)', water: 'L water', food: 'meals', blankets: 'blankets' };
 
 const map = L.map('map').setView([28.63, 77.2], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
