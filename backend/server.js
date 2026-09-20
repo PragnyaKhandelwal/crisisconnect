@@ -103,6 +103,11 @@ async function api(req, res, url) {
     await done();
     return json(res, 201, { ...snapshot().requests.find(x => x.id === r.id), source: t.source });
   }
+  if (url === '/api/admin/clear') { // wipe all requests (keeps depots); needs ADMIN_KEY env + x-admin-key header
+    if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY) return json(res, 403, { error: 'forbidden' });
+    state.requests = []; state.seq = 100; store.save(); await done();
+    return json(res, 200, { ok: true });
+  }
   if ((url === '/api/demo' || url === '/api/reset') && !process.env.ENABLE_DEMO_API) return json(res, 403, { error: 'disabled' });
   if (url === '/api/demo') {
     const b = await readBody(req);
