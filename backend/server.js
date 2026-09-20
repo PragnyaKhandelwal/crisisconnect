@@ -26,6 +26,8 @@ const clients = new Set();
 setInterval(() => clients.forEach(c => c.write(': ping\n\n')), 15000).unref(); // keeps proxies from closing the stream
 const broadcast = () => clients.forEach(c => c.write(`data: ${Date.now()}\n\n`));
 
+const done = async () => { await store.durable(); broadcast(); }; // respond only once data is stored
+
 // ---- derived view: ranked requests + global plan ----
 function snapshot() {
   const now = Date.now();
@@ -90,7 +92,7 @@ async function api(req, res, url) {
   if (url === '/api/requests') {
     const v = validate(await readBody(req));
     if (!v) return json(res, 400, { error: 'type, people, lat, lng required' });
-    const r = store.add(v); broadcast();
+    const r = store.add(v); await done();
     return json(res, 201, snapshot().requests.find(x => x.id === r.id));
   }
   if (url === '/api/triage') { // free text -> structured request
@@ -98,21 +100,21 @@ async function api(req, res, url) {
     if (!b.text || isNaN(parseFloat(b.lat)) || isNaN(parseFloat(b.lng))) return json(res, 400, { error: 'text, lat, lng required' });
     const t = await triage(String(b.text).slice(0, 500));
     const r = store.add({ type: t.type, people: t.people, urgency: t.urgency, lat: +b.lat, lng: +b.lng, note: t.note });
-    broadcast();
+    await done();
     return json(res, 201, { ...snapshot().requests.find(x => x.id === r.id), source: t.source });
   }
   if ((url === '/api/demo' || url === '/api/reset') && !process.env.ENABLE_DEMO_API) return json(res, 403, { error: 'disabled' });
   if (url === '/api/demo') {
     const b = await readBody(req);
-    store.generateDemo(Math.min(200, parseInt(b.count, 10) || 50)); broadcast();
+    store.generateDemo(Math.min(200, parseInt(b.count, 10) || 50)); await done();
     return json(res, 200, { ok: true });
   }
-  if (url === '/api/reset') { store.reset(false); broadcast(); return json(res, 200, { ok: true }); }
+  if (url === '/api/reset') { store.reset(false); await done(); return json(res, 200, { ok: true }); }
   if (url === '/api/dispatch-all') {
     const plan = allocateAll(state.requests, state.depots);
     let n = 0;
     for (const [id, p] of plan.byId) if (p.allocated > 0 && commit(plan, id)) n++;
-    store.save(); broadcast();
+    store.save(); await done();
     return json(res, 200, { ok: true, dispatched: n });
   }
   if (url === '/api/depots') { // register a real depot
@@ -121,7 +123,7 @@ async function api(req, res, url) {
     const n = v => Math.max(0, parseInt(v, 10) || 0), st = b.stock || {};
     state.depots.push({ id: 'D' + (Date.now() % 1e6), name: String(b.name).slice(0, 60), lat, lng, volunteers: n(b.volunteers),
       stock: { water: n(st.water), food: n(st.food), blankets: n(st.blankets), medical: n(st.medical) } });
-    store.save(); broadcast();
+    store.save(); await done();
     return json(res, 201, { ok: true });
   }
   const sm = url.match(/^\/api\/depots\/([\w-]+)$/);
@@ -131,7 +133,7 @@ async function api(req, res, url) {
     const b = await readBody(req), n = v => Math.max(0, parseInt(v, 10) || 0);
     for (const k of ['water', 'food', 'blankets', 'medical']) if (b.stock && b.stock[k] !== undefined) d.stock[k] = n(b.stock[k]);
     if (b.volunteers !== undefined) d.volunteers = n(b.volunteers);
-    store.save(); broadcast();
+    store.save(); await done();
     return json(res, 200, { ok: true });
   }
   const dm = url.match(/^\/api\/requests\/(\d+)\/dispatch$/);
@@ -141,7 +143,7 @@ async function api(req, res, url) {
     if (r.status !== 'open') return json(res, 409, { error: 'already dispatched' });
     const plan = allocateAll(state.requests, state.depots);
     if (!plan.byId.get(id).allocated) return json(res, 409, { error: 'no supply available' });
-    commit(plan, id); store.save(); broadcast();
+    commit(plan, id); store.save(); await done();
     return json(res, 200, { ok: true });
   }
   json(res, 404, { error: 'unknown route' });
@@ -158,8 +160,9 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
       res.end(data);
     });
-  } catch (e) { if (!res.headersSent) json(res, 400, { error: e.message }); }
+  } catch (e) { if (!res.headersSent) json(res, 500, { error: 'server error: ' + e.message }); }
 });
 
 if (require.main === module) store.ready.then(() => server.listen(PORT, () => console.log(`CrisisConnect running at http://localhost:${PORT} (storage: ${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON file'})`)), e => { console.error('Database init failed:', e.message); process.exit(1); });
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => store.durable().catch(() => {}).finally(() => process.exit(0)));
 module.exports = { server, snapshot };

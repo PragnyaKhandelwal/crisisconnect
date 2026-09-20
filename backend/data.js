@@ -29,35 +29,38 @@ async function initPg() {
   if (!dep.rows.length) await flush(); // first run: store the default depots
 }
 
-// delete rows that no longer exist in memory (e.g. after a reset)
-async function prune(c, table, ids) {
-  const keep = new Set(ids.map(String));
-  const { rows } = await c.query(`SELECT id FROM ${table}`);
-  for (const r of rows) if (!keep.has(String(r.id))) await c.query(`DELETE FROM ${table} WHERE id = $1`, [r.id]);
-}
-
-let flushing = Promise.resolve(), timer = null;
+// Writes are serialized and coalesced: one transaction with 4 statements syncs memory -> Postgres.
+// Callers `await durable()` so the API only answers after the data is really stored.
+let flushing = Promise.resolve(), queued = false;
 function flush() {
-  flushing = flushing.then(async () => {
+  if (queued) return flushing;
+  queued = true;
+  flushing = flushing.catch(() => {}).then(async () => {
+    queued = false;
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
-      await prune(c, 'depots', state.depots.map(d => d.id));
-      for (const d of state.depots) await c.query('INSERT INTO depots (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [d.id, d]);
-      await prune(c, 'requests', state.requests.map(r => r.id));
-      for (const r of state.requests) await c.query('INSERT INTO requests (id, status, created_at, data) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET status = $2, data = $4', [r.id, r.status, r.createdAt, r]);
+      const dep = state.depots, req = state.requests;
+      await c.query('DELETE FROM depots WHERE id <> ALL($1::text[])', [dep.map(d => d.id)]);
+      await c.query('INSERT INTO depots (id, data) SELECT * FROM unnest($1::text[], $2::jsonb[]) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+        [dep.map(d => d.id), dep.map(d => JSON.stringify(d))]);
+      await c.query('DELETE FROM requests WHERE id <> ALL($1::int[])', [req.map(r => r.id)]);
+      await c.query('INSERT INTO requests (id, status, created_at, data) SELECT * FROM unnest($1::int[], $2::text[], $3::bigint[], $4::jsonb[]) ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, data = EXCLUDED.data',
+        [req.map(r => r.id), req.map(r => r.status), req.map(r => r.createdAt), req.map(r => JSON.stringify(r))]);
       await c.query('COMMIT');
-    } catch (e) { await c.query('ROLLBACK').catch(() => {}); console.error('db write failed:', e.message); }
+    } catch (e) { await c.query('ROLLBACK').catch(() => {}); console.error('db write failed:', e.message); throw e; }
     finally { c.release(); }
   });
+  flushing.catch(() => {}); // failures are surfaced to whoever awaits durable()
   return flushing;
 }
+const durable = () => (usePg ? flushing : Promise.resolve());
 
 function load() {
   try { Object.assign(state, JSON.parse(fs.readFileSync(FILE, 'utf8'))); } catch { /* fresh start */ }
 }
 function save() {
-  if (usePg) { clearTimeout(timer); timer = setTimeout(flush, 150); return; }
+  if (usePg) return void flush();
   try { fs.writeFileSync(FILE, JSON.stringify(state)); } catch { /* read-only fs is fine */ }
 }
 
@@ -106,4 +109,4 @@ function reset(withDemo = false) {
 const ready = usePg ? initPg() : Promise.resolve(load());
 
 
-module.exports = { ready, state, add, save, generateDemo, reset };
+module.exports = { ready, durable, state, add, save, generateDemo, reset };
