@@ -1,0 +1,7 @@
+{
+  "name": "crisisconnect",
+  "version": "1.0.0",
+  "description": "AI-assisted disaster relief request prioritization and allocation",
+  "scripts": { "start": "node backend/server.js", "test": "node backend/test.js" },
+  "engines": { "node": ">=18" }
+}

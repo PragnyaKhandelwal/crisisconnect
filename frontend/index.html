@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrisisConnect</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div><h1>🆘 CrisisConnect</h1><p>Turn chaotic emergency requests into an optimal resource-allocation plan</p></div>
+  <div class="actions">
+    <span id="live" class="live">● live</span>
+    <button id="btn-demo" class="ghost">+ 50 requests</button>
+    <button id="btn-reset" class="ghost">Reset demo</button>
+    <button id="btn-all" class="primary">Approve full plan</button>
+  </div>
+</header>
+
+<section class="pipeline" id="pipeline"></section>
+<section class="stats" id="stats"></section>
+
+<main>
+  <div class="left">
+    <div id="map"></div>
+    <div class="legend">
+      <span><i class="dot" style="background:#ef4444"></i>Medical emergency</span>
+      <span><i class="dot" style="background:#f97316"></i>Water shortage</span>
+      <span><i class="dot" style="background:#eab308"></i>Food shortage</span>
+      <span><i class="dot" style="background:#3b82f6"></i>Blankets</span>
+      <span><i class="dot" style="background:#22c55e"></i>Resources available</span>
+      <span class="muted">Click a request to see its supply route</span>
+    </div>
+
+    <div class="panel"><h2>Depots &amp; resources <small>(remaining after plan / total)</small></h2><div id="depots"></div></div>
+
+    <div class="panel">
+      <h2>Submit a request</h2>
+      <p class="hint">1. Click the map to set location: <b id="loc">not set</b></p>
+      <form id="triage">
+        <input name="text" placeholder='Free text, e.g. "Need water - 40 people, children here"' required>
+        <button>AI triage</button>
+      </form>
+      <form id="form">
+        <select name="type"><option value="water">Water</option><option value="food">Food</option><option value="blankets">Blankets</option><option value="medical">Medical assistance</option></select>
+        <input name="people" type="number" min="1" placeholder="People" required>
+        <select name="urgency"><option value="1">Urgency 1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5 (urgent)</option></select>
+        <input name="note" placeholder="Details (optional)">
+        <button>Submit</button>
+      </form>
+    </div>
+  </div>
+
+  <aside>
+    <div class="qhead">
+      <h2>Prioritized incidents</h2>
+      <div class="filters" id="filters">
+        <button data-f="all" class="on">All</button><button data-f="CRITICAL">Critical</button><button data-f="HIGH">High</button>
+        <button data-f="unmet">Unmet</button><button data-f="dispatched">Done</button>
+      </div>
+    </div>
+    <div id="queue"></div>
+  </aside>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
