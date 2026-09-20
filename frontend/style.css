@@ -56,3 +56,8 @@ aside { position:sticky; top:8px; max-height:calc(100vh - 16px); display:flex; f
 .compare { margin:0 20px 12px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; overflow-x:auto; }
 .compare table { width:100%; border-collapse:collapse; } .compare th { text-align:left; color:var(--mute); font-weight:500; font-size:12px; } .compare td, .compare th { padding:5px 10px 5px 0; }
 .compare tr.ai td { color:var(--green); font-weight:600; } .compare em { font-style:normal; font-size:12px; margin-left:6px; padding:1px 6px; border-radius:6px; background:#0e1729; } .compare em.dn { color:var(--red); }
+
+input.sm { width:70px; padding:3px 6px; font-size:12px; margin-top:2px; }
+#depot-form b { flex-basis:100%; font-size:12px; } #depot-form input { flex:1 1 90px; }
+#toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%) translateY(120px); background:#14532d; color:#dcfce7; border:1px solid var(--green); padding:10px 16px; border-radius:10px; max-width:90vw; transition:transform .25s; z-index:1000; box-shadow:0 6px 24px #0008; }
+#toast.show { transform:translateX(-50%) translateY(0); } #toast.bad { background:#7f1d1d; color:#fee2e2; border-color:var(--red); }

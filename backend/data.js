@@ -12,10 +12,54 @@ const seedDepots = () => [
 
 const state = { depots: seedDepots(), requests: [], seq: 100 };
 
+// Storage: PostgreSQL when DATABASE_URL is set (real, durable), else a local JSON file.
+let pool = null;
+const usePg = !!process.env.DATABASE_URL;
+
+async function initPg() {
+  const { Pool } = require('pg');
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: /localhost|127.0.0.1/.test(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false }, max: 4 });
+  await pool.query('CREATE TABLE IF NOT EXISTS depots (id text PRIMARY KEY, data jsonb NOT NULL)');
+  await pool.query('CREATE TABLE IF NOT EXISTS requests (id integer PRIMARY KEY, status text NOT NULL, created_at bigint NOT NULL, data jsonb NOT NULL)');
+  const dep = await pool.query('SELECT data FROM depots');
+  const req = await pool.query('SELECT data FROM requests ORDER BY id');
+  if (dep.rows.length) state.depots = dep.rows.map(r => r.data);
+  state.requests = req.rows.map(r => r.data);
+  state.seq = Math.max(100, ...state.requests.map(r => r.id));
+  if (!dep.rows.length) await flush(); // first run: store the default depots
+}
+
+// delete rows that no longer exist in memory (e.g. after a reset)
+async function prune(c, table, ids) {
+  const keep = new Set(ids.map(String));
+  const { rows } = await c.query(`SELECT id FROM ${table}`);
+  for (const r of rows) if (!keep.has(String(r.id))) await c.query(`DELETE FROM ${table} WHERE id = $1`, [r.id]);
+}
+
+let flushing = Promise.resolve(), timer = null;
+function flush() {
+  flushing = flushing.then(async () => {
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await prune(c, 'depots', state.depots.map(d => d.id));
+      for (const d of state.depots) await c.query('INSERT INTO depots (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2', [d.id, d]);
+      await prune(c, 'requests', state.requests.map(r => r.id));
+      for (const r of state.requests) await c.query('INSERT INTO requests (id, status, created_at, data) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET status = $2, data = $4', [r.id, r.status, r.createdAt, r]);
+      await c.query('COMMIT');
+    } catch (e) { await c.query('ROLLBACK').catch(() => {}); console.error('db write failed:', e.message); }
+    finally { c.release(); }
+  });
+  return flushing;
+}
+
 function load() {
   try { Object.assign(state, JSON.parse(fs.readFileSync(FILE, 'utf8'))); } catch { /* fresh start */ }
 }
-function save() { try { fs.writeFileSync(FILE, JSON.stringify(state)); } catch { /* read-only fs is fine */ } }
+function save() {
+  if (usePg) { clearTimeout(timer); timer = setTimeout(flush, 150); return; }
+  try { fs.writeFileSync(FILE, JSON.stringify(state)); } catch { /* read-only fs is fine */ }
+}
 
 function mulberry32(a) {
   return () => {
@@ -54,12 +98,12 @@ function generateDemo(n = 50, seed = Date.now() % 100000) {
   }
 }
 
-function reset(withDemo = true) {
+function reset(withDemo = false) {
   state.depots = seedDepots(); state.requests = []; state.seq = 100;
   if (withDemo) generateDemo(50, 42); else save();
 }
 
-load();
-if (!state.requests.length) reset(true);
+const ready = usePg ? initPg() : Promise.resolve(load());
 
-module.exports = { state, add, save, generateDemo, reset };
+
+module.exports = { ready, state, add, save, generateDemo, reset };

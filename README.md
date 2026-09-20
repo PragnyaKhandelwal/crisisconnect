@@ -11,7 +11,7 @@ Turns hundreds of chaotic emergency requests into an organized, explainable reso
 npm start      # http://localhost:3000  (50 demo requests preloaded)
 npm test       # unit + end-to-end API tests
 ```
-Optional: `GROQ_API_KEY=... npm start` makes free-text triage use Groq (gpt-oss-20b, free tier; falls back to rules).
+Optional env: `DATABASE_URL` (Postgres), `GROQ_API_KEY=... npm start` makes free-text triage use Groq (gpt-oss-20b, free tier; falls back to rules).
 
 ## Demo script
 1. Open the dashboard: map of 50 requests (red medical / orange water / yellow food / blue blankets / green depots).
@@ -19,9 +19,11 @@ Optional: `GROQ_API_KEY=... npm start` makes free-text triage use Groq (gpt-oss-
 3. Type "Need water - 40 people, children here", click the map, press *AI triage*: a live new incident appears (SSE).
 4. *Approve full plan* dispatches the global plan, depot stock drops, unmet requests remain flagged for resupply.
 
-## Extra demo features
-- **AI vs first-come-first-served panel**: same stock, two strategies; shows critical incidents fully served and average supply distance. Supplies are deliberately scarce in the seed scenario.
-- **Simulate +1 hour**: dispatches the top plan, resupplies depots slightly, and a new wave of requests arrives.
+## Real, live data
+- Starts empty: every request and depot is entered by real users (map click, address search or GPS).
+- **PostgreSQL** persistence when `DATABASE_URL` is set (tables `requests`, `depots`); local JSON file otherwise.
+- Depot inventory is editable in the dashboard; the AI plan recomputes instantly.
+- **AI vs first-come-first-served panel** compares strategies on the live data.
 
 ## How it works
 - Score (0-100) = category severity + urgency*8 + people*0.4 + distance + supply scarcity + waiting time → CRITICAL/HIGH/MEDIUM/LOW.

@@ -1,3 +1,4 @@
+process.env.ENABLE_DEMO_API = '1';
 process.env.DATA_FILE = require('path').join(require('os').tmpdir(), 'cc-test-' + process.pid + '.json');
 const assert = require('assert');
 const { allocateAll, score } = require('./prioritizer');
@@ -30,8 +31,9 @@ server.listen(0, async () => {
   const base = `http://localhost:${server.address().port}/api`;
   const post = (p, b) => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) });
   try {
+    assert.strictEqual((await post('/demo', { count: 50 })).status, 200);
     let s = await (await fetch(base + '/state')).json();
-    assert.strictEqual(s.stats.open, 50, '50 demo requests seeded');
+    assert.strictEqual(s.stats.open, 50, '50 requests generated');
     assert(s.requests[0].score >= s.requests[10].score, 'ranked');
     const r = await post('/triage', { text: 'Need blankets for 20 people', lat: 28.6, lng: 77.2 });
     assert.strictEqual(r.status, 201);

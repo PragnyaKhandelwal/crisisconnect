@@ -10,7 +10,6 @@ let picked = null, pickMarker = null, data = null, selected = null, filter = 'al
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const post = (p, b) => fetch(API + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) });
-const flash = async res => { if (!res.ok) alert((await res.json()).error || 'Request failed'); };
 
 map.on('click', e => {
   picked = e.latlng;
@@ -44,12 +43,14 @@ function render() {
     ['Unmet (need resupply)', stats.unmet], ['Dispatched', stats.dispatched],
   ].map(([l, v]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
 
-  $('depots').innerHTML = depots.map(d => `
-    <div class="depot"><div><b>${esc(d.name)}</b><br><span class="muted">${d.volunteersLeft}/${d.volunteers} volunteer teams</span></div>
-    ${['water', 'food', 'blankets', 'medical'].map(k => {
-      const p = d.stock[k] ? Math.round(100 * d.remaining[k] / d.stock[k]) : 0;
-      return `<div>${k}<br>${d.remaining[k]} / ${d.stock[k]}<div class="bar ${p < 15 ? 'low' : ''}"><i style="width:${p}%"></i></div></div>`;
-    }).join('')}</div>`).join('');
+  // editable inventory; don't redraw while the user is typing in one of the boxes
+  if (!document.activeElement?.dataset?.k) {
+    const cell = (d, k, label, val, after) => `<div>${label}<br><input class="sm" type="number" min="0" data-d="${d.id}" data-k="${k}" value="${val}"><br><span class="muted">${after}</span></div>`;
+    $('depots').innerHTML = depots.map(d => `
+      <div class="depot"><div><b>${esc(d.name)}</b><br><span class="muted">volunteer teams</span><br><input class="sm" type="number" min="0" data-d="${d.id}" data-k="volunteers" value="${d.volunteers}"></div>
+      ${['water', 'food', 'blankets', 'medical'].map(k => cell(d, k, k, d.stock[k], 'after plan: ' + d.remaining[k])).join('')}</div>`).join('')
+      || '<p class="hint">No depots yet. Add one below.</p>';
+  }
 
   layer.clearLayers();
   depots.forEach(d => L.circleMarker([d.lat, d.lng], { radius: 11, color: '#fff', weight: 2, fillColor: '#22c55e', fillOpacity: .9 })
@@ -94,7 +95,7 @@ function select(id) {
 
 $('queue').addEventListener('click', async e => {
   const btn = e.target.closest('[data-dispatch]');
-  if (btn) { e.stopPropagation(); return flash(await post(`/requests/${btn.dataset.dispatch}/dispatch`)); }
+  if (btn) { e.stopPropagation(); const j = await send(`/requests/${btn.dataset.dispatch}/dispatch`); return j && toast('Dispatched: stock deducted from depots.'); }
   const c = e.target.closest('.req');
   if (c) select(+c.dataset.id);
 });
@@ -104,30 +105,93 @@ $('filters').addEventListener('click', e => {
   document.querySelectorAll('#filters button').forEach(b => b.classList.toggle('on', b === e.target));
   render();
 });
-$('btn-demo').onclick = async () => flash(await post('/demo', { count: 50 }));
-$('btn-reset').onclick = async () => { selected = null; flash(await post('/reset')); };
-$('btn-sim').onclick = async () => flash(await post('/simulate'));
+
+// ---- actions: always re-fetch after a change so the UI never depends on the live stream ----
+let toastTimer;
+function toast(msg, bad) {
+  const t = $('toast'); t.textContent = msg; t.className = 'show' + (bad ? ' bad' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = ''; }, 7000);
+}
+async function send(path, body) {
+  try {
+    const res = await post(path, body), j = await res.json().catch(() => ({}));
+    if (!res.ok) { toast(j.error || 'Request failed', true); return null; }
+    await refresh();
+    return j;
+  } catch { toast('Cannot reach the server. Check your connection.', true); return null; }
+}
+
 $('btn-all').onclick = async () => {
-  const res = await post('/dispatch-all'); await flash(res);
+  if (!confirm('Dispatch the full plan? This deducts stock from depots.')) return;
+  const j = await send('/dispatch-all');
+  if (j) toast(`Dispatched ${j.dispatched} requests.`);
+};
+$('depots').addEventListener('change', async e => {
+  const d = e.target.dataset;
+  if (!d.d) return;
+  const v = Math.max(0, parseInt(e.target.value, 10) || 0);
+  await send('/depots/' + d.d, d.k === 'volunteers' ? { volunteers: v } : { stock: { [d.k]: v } });
+});
+$('depot-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!picked) return toast('Set a location first (click the map, search, or use GPS).', true);
+  const f = Object.fromEntries(new FormData(e.target));
+  const j = await send('/depots', { name: f.name, lat: picked.lat, lng: picked.lng, volunteers: f.volunteers, stock: f });
+  if (j) { e.target.reset(); toast('Depot added.'); }
+});
+
+// ---- location: map click, address search (OpenStreetMap Nominatim) or device GPS ----
+function setPicked(lat, lng, zoom) {
+  picked = { lat, lng };
+  $('loc').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  if (pickMarker) map.removeLayer(pickMarker);
+  pickMarker = L.marker(picked).addTo(map);
+  if (zoom) map.setView(picked, zoom);
+}
+map.off('click');
+map.on('click', e => setPicked(e.latlng.lat, e.latlng.lng));
+$('geo').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    const q = new FormData(e.target).get('q');
+    const r = await (await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))).json();
+    if (!r.length) return toast('Address not found. Try a broader name or click the map.', true);
+    setPicked(+r[0].lat, +r[0].lon, 15); toast('Location set: ' + r[0].display_name.slice(0, 80));
+  } catch { toast('Address search failed. Click the map instead.', true); }
+});
+$('btn-gps').onclick = () => {
+  if (!navigator.geolocation) return toast('GPS not available in this browser.', true);
+  navigator.geolocation.getCurrentPosition(p => { setPicked(p.coords.latitude, p.coords.longitude, 15); toast('Using your current location.'); },
+    () => toast('Could not get your location. Allow location access or click the map.', true), { enableHighAccuracy: true, timeout: 10000 });
 };
 
+// ---- submitting requests: show the result immediately ----
+function showResult(r) {
+  if (!r) return;
+  const p = r.plan?.[0] || 'No supply available: escalate for resupply';
+  toast(`Request #${r.id} added: ${r.priority} (score ${r.score}, rank ${r.rank}). ${p}`);
+  filter = 'all'; document.querySelectorAll('#filters button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
+  selected = r.id; render();
+  map.panTo([r.lat, r.lng]);
+  document.querySelector(`.req[data-id="${r.id}"]`)?.scrollIntoView({ block: 'center' });
+}
 $('triage').addEventListener('submit', async e => {
   e.preventDefault();
-  const loc = picked || { lat: 28.63 + (Math.random() - .5) * .1, lng: 77.2 + (Math.random() - .5) * .1 };
-  await flash(await post('/triage', { text: new FormData(e.target).get('text'), ...loc }));
-  e.target.reset();
+  if (!picked) return toast('Set the location first (click the map, search an address, or use GPS).', true);
+  const r = await send('/triage', { text: new FormData(e.target).get('text'), ...picked });
+  if (r) { e.target.reset(); showResult(r); }
 });
 $('form').addEventListener('submit', async e => {
   e.preventDefault();
-  if (!picked) return alert('Click the map to set the request location first.');
-  await flash(await post('/requests', { ...Object.fromEntries(new FormData(e.target)), lat: picked.lat, lng: picked.lng }));
-  e.target.reset();
+  if (!picked) return toast('Set the location first (click the map, search an address, or use GPS).', true);
+  const r = await send('/requests', { ...Object.fromEntries(new FormData(e.target)), ...picked });
+  if (r) { e.target.reset(); showResult(r); }
 });
 
-// Live updates: server pushes an event on every change; poll as a fallback (also refreshes waiting-time scores).
+// ---- live: server push + polling fallback ----
 const es = new EventSource(API + '/stream');
-es.onopen = () => { $('live').classList.add('on'); };
-es.onerror = () => { $('live').classList.remove('on'); };
-es.onmessage = refresh;
-refresh();
-setInterval(refresh, 30000);
+es.onopen = () => $('live').classList.add('on');
+es.onerror = () => $('live').classList.remove('on');
+es.onmessage = () => refresh().catch(() => {});
+refresh().catch(() => toast('Cannot reach the server.', true));
+setInterval(() => refresh().catch(() => {}), 5000);

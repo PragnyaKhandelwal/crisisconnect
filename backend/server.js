@@ -23,6 +23,7 @@ const readBody = req => new Promise((ok, fail) => {
 
 // ---- live updates (Server-Sent Events) ----
 const clients = new Set();
+setInterval(() => clients.forEach(c => c.write(': ping\n\n')), 15000).unref(); // keeps proxies from closing the stream
 const broadcast = () => clients.forEach(c => c.write(`data: ${Date.now()}\n\n`));
 
 // ---- derived view: ranked requests + global plan ----
@@ -73,7 +74,7 @@ async function api(req, res, url) {
     return res.end();
   }
   if (url === '/api/stream') {
-    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     res.write('retry: 2000\n\n'); clients.add(res);
     return req.on('close', () => clients.delete(res));
   }
@@ -90,7 +91,7 @@ async function api(req, res, url) {
     const v = validate(await readBody(req));
     if (!v) return json(res, 400, { error: 'type, people, lat, lng required' });
     const r = store.add(v); broadcast();
-    return json(res, 201, r);
+    return json(res, 201, snapshot().requests.find(x => x.id === r.id));
   }
   if (url === '/api/triage') { // free text -> structured request
     const b = await readBody(req);
@@ -98,28 +99,40 @@ async function api(req, res, url) {
     const t = await triage(String(b.text).slice(0, 500));
     const r = store.add({ type: t.type, people: t.people, urgency: t.urgency, lat: +b.lat, lng: +b.lng, note: t.note });
     broadcast();
-    return json(res, 201, { ...r, source: t.source });
+    return json(res, 201, { ...snapshot().requests.find(x => x.id === r.id), source: t.source });
   }
+  if ((url === '/api/demo' || url === '/api/reset') && !process.env.ENABLE_DEMO_API) return json(res, 403, { error: 'disabled' });
   if (url === '/api/demo') {
     const b = await readBody(req);
     store.generateDemo(Math.min(200, parseInt(b.count, 10) || 50)); broadcast();
     return json(res, 200, { ok: true });
   }
-  if (url === '/api/simulate') { // advance one hour: dispatch the plan for top incidents, resupply, new requests arrive
-    const plan = allocateAll(state.requests, state.depots);
-    let n = 0;
-    for (const [id, p] of plan.byId) { if (n >= 10) break; if (p.allocated > 0 && commit(plan, id)) n++; }
-    state.depots.forEach(d => { d.stock.water += 60; d.stock.food += 40; d.stock.blankets += 10; if (Math.random() < .3) d.stock.medical++; });
-    store.generateDemo(8 + Math.floor(Math.random() * 6)); store.save(); broadcast();
-    return json(res, 200, { ok: true, dispatched: n });
-  }
-  if (url === '/api/reset') { store.reset(true); broadcast(); return json(res, 200, { ok: true }); }
+  if (url === '/api/reset') { store.reset(false); broadcast(); return json(res, 200, { ok: true }); }
   if (url === '/api/dispatch-all') {
     const plan = allocateAll(state.requests, state.depots);
     let n = 0;
     for (const [id, p] of plan.byId) if (p.allocated > 0 && commit(plan, id)) n++;
     store.save(); broadcast();
     return json(res, 200, { ok: true, dispatched: n });
+  }
+  if (url === '/api/depots') { // register a real depot
+    const b = await readBody(req), lat = parseFloat(b.lat), lng = parseFloat(b.lng);
+    if (!b.name || isNaN(lat) || isNaN(lng)) return json(res, 400, { error: 'name, lat, lng required' });
+    const n = v => Math.max(0, parseInt(v, 10) || 0), st = b.stock || {};
+    state.depots.push({ id: 'D' + (Date.now() % 1e6), name: String(b.name).slice(0, 60), lat, lng, volunteers: n(b.volunteers),
+      stock: { water: n(st.water), food: n(st.food), blankets: n(st.blankets), medical: n(st.medical) } });
+    store.save(); broadcast();
+    return json(res, 201, { ok: true });
+  }
+  const sm = url.match(/^\/api\/depots\/([\w-]+)$/);
+  if (sm) { // update a depot's real inventory
+    const d = state.depots.find(x => x.id === sm[1]);
+    if (!d) return json(res, 404, { error: 'not found' });
+    const b = await readBody(req), n = v => Math.max(0, parseInt(v, 10) || 0);
+    for (const k of ['water', 'food', 'blankets', 'medical']) if (b.stock && b.stock[k] !== undefined) d.stock[k] = n(b.stock[k]);
+    if (b.volunteers !== undefined) d.volunteers = n(b.volunteers);
+    store.save(); broadcast();
+    return json(res, 200, { ok: true });
   }
   const dm = url.match(/^\/api\/requests\/(\d+)\/dispatch$/);
   if (dm) {
@@ -148,5 +161,5 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { if (!res.headersSent) json(res, 400, { error: e.message }); }
 });
 
-if (require.main === module) server.listen(PORT, () => console.log(`CrisisConnect running at http://localhost:${PORT}`));
+if (require.main === module) store.ready.then(() => server.listen(PORT, () => console.log(`CrisisConnect running at http://localhost:${PORT} (storage: ${process.env.DATABASE_URL ? 'PostgreSQL' : 'JSON file'})`)), e => { console.error('Database init failed:', e.message); process.exit(1); });
 module.exports = { server, snapshot };

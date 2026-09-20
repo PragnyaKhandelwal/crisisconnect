@@ -12,9 +12,6 @@
   <div><h1>🆘 CrisisConnect</h1><p>Turn chaotic emergency requests into an optimal resource-allocation plan</p></div>
   <div class="actions">
     <span id="live" class="live">● live</span>
-    <button id="btn-demo" class="ghost">+ 50 requests</button>
-    <button id="btn-reset" class="ghost">Reset demo</button>
-    <button id="btn-sim" class="ghost">▶ Simulate +1 hour</button>
     <button id="btn-all" class="primary">Approve full plan</button>
   </div>
 </header>
@@ -36,11 +33,30 @@
       <span class="muted">Click a request to see its supply route</span>
     </div>
 
-    <div class="panel"><h2>Depots &amp; resources <small>(remaining after plan / total)</small></h2><div id="depots"></div></div>
+    <div class="panel">
+      <h2>Depots &amp; inventory <small>(edit the numbers to match real stock; "after plan" = left once the plan is executed)</small></h2>
+      <div id="depots"></div>
+      <form id="depot-form">
+        <b>Add depot at the selected location:</b>
+        <input name="name" placeholder="Depot name" required>
+        <input name="water" type="number" min="0" placeholder="Water L">
+        <input name="food" type="number" min="0" placeholder="Meals">
+        <input name="blankets" type="number" min="0" placeholder="Blankets">
+        <input name="medical" type="number" min="0" placeholder="Med teams">
+        <input name="volunteers" type="number" min="0" placeholder="Volunteer teams">
+        <button>Add depot</button>
+      </form>
+    </div>
 
     <div class="panel">
       <h2>Submit a request</h2>
-      <p class="hint">1. Click the map to set location: <b id="loc">not set</b></p>
+      <p class="hint">1. Set the location (click the map, search an address, or use GPS). Selected: <b id="loc">not set</b></p>
+      <form id="geo">
+        <input name="q" placeholder="Search address / area, e.g. Connaught Place, Delhi" required>
+        <button>Search</button>
+        <button type="button" id="btn-gps">📍 Use my location</button>
+      </form>
+      <p class="hint" style="margin-top:8px">2. Describe the need:</p>
       <form id="triage">
         <input name="text" placeholder='Free text, e.g. "Need water - 40 people, children here"' required>
         <button>AI triage</button>
@@ -67,6 +83,7 @@
   </aside>
 </main>
 
+<div id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js"></script>
 </body>

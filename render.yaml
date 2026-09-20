@@ -5,5 +5,7 @@ services:
     plan: free
     healthCheckPath: /api/stats
     envVars:
+      - key: DATABASE_URL
+        sync: false
       - key: GROQ_API_KEY
         sync: false
