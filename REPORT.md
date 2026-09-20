@@ -61,16 +61,17 @@ Suggested allocation:
    - Web form (type, people, urgency, note, location).
    - **AI free-text triage** via Groq (`openai/gpt-oss-20b`): "पानी चाहिए, 60 लोग, बच्चे भी हैं" becomes water, 60 people, urgency, place. Works in Hindi and other languages. Rule-based fallback if the AI is unavailable.
    - **SMS / WhatsApp** through a Twilio webhook. Victims text a need plus a place (or share WhatsApp location); the system creates the request and replies with the request number, priority and first action.
-2. **Location input**: click the map, search an address (OpenStreetMap Nominatim), or use device GPS.
-3. **Explainable prioritization**: score breakdown per incident (severity, urgency, people, distance, scarcity, waiting time).
-4. **Global allocation engine**: priority order, nearest depots first, splits a request across depots, simulates stock so nothing is double-booked, flags shortfalls for resupply, assigns volunteer teams.
-5. **Real road routing**: OSRM road distance and drive-time ETA; automatic straight-line fallback; dashboard shows which mode is active.
-6. **AI vs first-come-first-served panel**: same stock, two strategies, side by side on live data.
-7. **Live inventory management**: depots and stock are entered and edited in the dashboard; the plan recomputes instantly.
-8. **Coordinator login**: everyone can submit and view; only coordinators can dispatch, add depots and edit stock. Signed 12-hour tokens, login rate limiting.
-9. **Real-time dashboard**: Server-Sent Events push changes to every open screen; map with color-coded incidents and depots; supply routes drawn for a selected incident; filters (Critical / High / Unmet / Done).
-10. **Durable storage**: PostgreSQL (Neon). The API answers only after the write is committed.
-11. **Works on phones**: responsive layout verified at 320 px, 390 px, 820 px and 1440 px widths.
+2. **Messaging simulator**: an in-browser chat that runs the identical pipeline as the Twilio webhook, so judges can try the SMS/WhatsApp flow instantly with no accounts or setup.
+3. **Location input**: click the map, search an address (OpenStreetMap Nominatim), or use device GPS.
+4. **Explainable prioritization**: score breakdown per incident (severity, urgency, people, distance, scarcity, waiting time).
+5. **Global allocation engine**: priority order, nearest depots first, splits a request across depots, simulates stock so nothing is double-booked, flags shortfalls for resupply, assigns volunteer teams.
+6. **Real road routing**: OSRM road distance and drive-time ETA; automatic straight-line fallback; dashboard shows which mode is active.
+7. **AI vs first-come-first-served panel**: same stock, two strategies, side by side on live data.
+8. **Live inventory management**: depots and stock are entered and edited in the dashboard; the plan recomputes instantly.
+9. **Coordinator login**: everyone can submit and view; only coordinators can dispatch, add depots and edit stock. Signed 12-hour tokens, login rate limiting.
+10. **Real-time dashboard**: Server-Sent Events push changes to every open screen; map with color-coded incidents and depots; supply routes drawn for a selected incident; filters (Critical / High / Unmet / Done).
+11. **Durable storage**: PostgreSQL (Neon). The API answers only after the write is committed.
+12. **Works on phones**: responsive layout verified at 320 px, 390 px, 820 px and 1440 px widths.
 
 ### Map legend (as in the brief)
 Red = medical emergency, orange = water shortage, yellow = food shortage, blue = blankets/shelter, green = resources available (depots).
@@ -251,7 +252,7 @@ database.
 1. **Open the dashboard** (wake the free server beforehand): map, pipeline strip, stats.
 2. **Show the problem**: with many requests loaded, point out the ranked list and the comparison panel (AI vs FCFS).
 3. **Click a CRITICAL incident**: show the score breakdown and the dashed supply route with road ETA.
-4. **Submit a live request from a phone**: WhatsApp *"Need water for 40 people near Karol Bagh, Delhi"* and show the reply and the new incident appearing on screen.
+4. **Submit a live request**: use the in-browser messaging simulator (always available), or from a phone via WhatsApp *"Need water for 40 people near Karol Bagh, Delhi"* and show the reply and the new incident appearing on screen.
 5. **Free-text in Hindi** from the web form to show multilingual triage.
 6. **Coordinator login**: show that dispatch and inventory controls appear only after login; edit a depot's stock and watch the plan change.
 7. **Approve and dispatch**: stock decreases; unmet requests remain flagged for resupply.

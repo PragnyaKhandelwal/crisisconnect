@@ -194,6 +194,23 @@ $('form').addEventListener('submit', async e => {
   if (r) { e.target.reset(); showResult(r); }
 });
 
+// ---- messaging simulator ----
+function bubble(text, who) {
+  const d = document.createElement('div'); d.className = 'bubble ' + who; d.textContent = text;
+  $('chat').appendChild(d); $('chat').scrollTop = $('chat').scrollHeight; return d;
+}
+$('chat-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = new FormData(e.target).get('text'); e.target.reset();
+  bubble(text, 'me'); const wait = bubble('...', 'bot');
+  try {
+    const res = await fetch(API + '/sms-demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...(picked ? { lat: picked.lat, lng: picked.lng } : {}) }) });
+    const j = await res.json();
+    wait.textContent = res.ok ? j.reply : (j.error || 'Something went wrong.');
+    if (res.ok && j.requestId) { await refresh(); selected = j.requestId; render(); document.querySelector('.req[data-id="' + j.requestId + '"]')?.scrollIntoView({ block: 'center' }); }
+  } catch { wait.textContent = 'Cannot reach the server.'; }
+});
+
 // ---- live: server push + polling fallback ----
 const es = new EventSource(API + '/stream');
 es.onopen = () => $('live').classList.add('on');

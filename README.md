@@ -15,6 +15,24 @@ requests (web / free-text AI / SMS / WhatsApp)
         -> coordinator approves -> stock deducted -> everything saved in PostgreSQL
 ```
 
+## 🧑‍⚖️ For judges: try it in 3 minutes
+
+**Live app:** https://crisisconnect-hf37.onrender.com
+*(Hosted on a free tier: if it has been idle, the first load can take up to a minute. Please wait and refresh once.)*
+
+| # | What to try | How | Needs setup? |
+|---|---|---|---|
+| 1 | **See the AI prioritize and allocate** | Open the link. Requests appear ranked with CRITICAL / HIGH / MEDIUM / LOW. Click any incident to see *why* it ranked there (score breakdown) and its road route and ETA on the map. The **AI vs first-come-first-served** panel compares strategies. | No |
+| 2 | **Send a request like a victim would (in-browser simulator)** | Scroll to **💬 Try the WhatsApp / SMS flow**. Type *"Need water for 40 people near Karol Bagh, Delhi"* (English, Hindi and other languages work). To share a location the way WhatsApp does, click the map first. The bot replies with the request number, priority and first planned action, and the new incident appears on the map. | **No. Recommended.** |
+| 3 | **Real WhatsApp** | Join our Twilio sandbox once: tap https://wa.me/17372508034?text=join%20twilio-trial (or WhatsApp **join twilio-trial** to **+1 (737) 250-8034**), then send the same kind of message. Replies and new incidents arrive live. | Quick, one-time join |
+| 4 | **Coordinator actions** | Click **Coordinator login** (top right) and enter the password from the submission notes. Then you can approve and dispatch requests, edit depot stock, add depots, and press **Approve full plan**. Without login the dashboard is view and submit only. | Password |
+
+**About the real messaging option.** WhatsApp works for anyone who joins the sandbox with the code above (no need for us to add you).
+The Twilio *trial* sandbox membership expires after about 72 hours and re-joining is a single message. Plain **SMS** on a Twilio trial can only
+reach numbers verified in the console, so it cannot be opened to the public; the in-browser simulator (row 2) runs the *exact same code path* as the
+real webhook (triage, geocoding, request creation, priority, reply), so you can evaluate the SMS/WhatsApp flow without any setup.
+<!-- add demo video link here -->
+
 ## Features
 | Area | What it does |
 |---|---|
@@ -23,6 +41,7 @@ requests (web / free-text AI / SMS / WhatsApp)
 | **AI vs first-come-first-served** | Panel comparing both strategies on the same live data (critical incidents fully served, average distance). |
 | **AI triage** | Free text ("Need water for 40 people, children here", or Hindi/other languages) becomes type, people, urgency and place via Groq (`openai/gpt-oss-20b`). Falls back to a rule-based parser if no key or on error. |
 | **Road routing** | Real road distance and drive-time ETA from OSRM; automatic straight-line fallback. Dashboard shows which mode is active. |
+| **Messaging simulator** | In-browser chat that runs the same pipeline as the Twilio webhook, so anyone can try the SMS/WhatsApp flow with no setup. |
 | **SMS / WhatsApp intake** | Twilio webhook `POST /api/sms`. Victims text a need plus a place name (or share WhatsApp location); the app creates the request and replies with its number, priority and first action. Numbers stored masked. |
 | **Location input** | Click the map, search an address (OpenStreetMap Nominatim) or use device GPS. |
 | **Inventory** | Depots and stock are entered and edited in the dashboard (coordinators). The plan recomputes instantly. |
@@ -62,7 +81,7 @@ Without Twilio you can still exercise the webhook:
 `curl -X POST https://<your-app>/api/sms -d "Body=Need water for 40 people&Latitude=28.6&Longitude=77.2"` (works when `TWILIO_AUTH_TOKEN` is unset).
 
 ## API
-Public: `GET /api/state` · `GET /api/me` · `POST /api/requests` · `POST /api/triage {text,lat,lng}` · `POST /api/sms` (Twilio) · `POST /api/login {password}` · `GET /api/stream` (SSE)
+Public: `POST /api/sms-demo {text,lat?,lng?}` (simulator) · `GET /api/state` · `GET /api/me` · `POST /api/requests` · `POST /api/triage {text,lat,lng}` · `POST /api/sms` (Twilio) · `POST /api/login {password}` · `GET /api/stream` (SSE)
 Coordinator (Bearer token or `x-admin-key`): `POST /api/requests/:id/dispatch` · `POST /api/dispatch-all` · `POST /api/depots` · `POST /api/depots/:id` · `POST /api/admin/clear`
 
 ## Architecture

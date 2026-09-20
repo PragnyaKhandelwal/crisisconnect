@@ -27,19 +27,21 @@ function signatureOk(req, params) {
   return want.length === got.length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(got));
 }
 
-async function handle(params, deps) {
+async function processMessage(params, deps) {
   const body = String(params.Body || '').trim();
-  if (!body && !params.Latitude) return twiml('CrisisConnect: describe what you need, e.g. "Need water for 40 people near Karol Bagh".');
+  if (!body && !params.Latitude) return { message: 'CrisisConnect: describe what you need, e.g. "Need water for 40 people near Karol Bagh".' };
   const t = await deps.triage(body || 'help needed');
   let loc = params.Latitude && params.Longitude ? { lat: +params.Latitude, lng: +params.Longitude } : null;
   if (!loc) loc = await geocode(t.place);
   if (!loc || isNaN(loc.lat) || isNaN(loc.lng)) {
-    return twiml('We understood your need but not WHERE you are. Reply with your area/landmark (e.g. "Need water for 40 people near Karol Bagh, Delhi") or share your WhatsApp location.');
+    return { message: 'We understood your need but not WHERE you are. Reply with your area/landmark (e.g. "Need water for 40 people near Karol Bagh, Delhi") or share your WhatsApp location.' };
   }
   const from = String(params.From || '').replace(/\D/g, '');
   const r = await deps.create({ type: t.type, people: t.people, urgency: t.urgency, lat: loc.lat, lng: loc.lng, note: t.note, channel: 'sms', contact: from ? '***' + from.slice(-4) : '' });
   const first = r.plan && r.plan[0] ? r.plan[0] : 'Coordinators have been alerted';
-  return twiml(`CrisisConnect: request #${r.id} received (${t.type}, ${t.people} people). Priority: ${r.priority}. ${first}. Stay safe.`);
+  return { message: `CrisisConnect: request #${r.id} received (${t.type}, ${t.people} ${t.people === 1 ? 'person' : 'people'}). Priority: ${r.priority}. ${first}. Stay safe.`, request: r };
 }
 
-module.exports = { handle, signatureOk, twiml, geocode };
+const handle = async (params, deps) => twiml((await processMessage(params, deps)).message);
+
+module.exports = { handle, processMessage, signatureOk, twiml, geocode };

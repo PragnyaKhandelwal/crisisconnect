@@ -50,6 +50,12 @@
       </form>
     </div>
 
+    <div class="panel" id="sim-panel">
+      <h2>💬 Try the WhatsApp / SMS flow <small>(simulator: runs the same code as the real Twilio webhook)</small></h2>
+      <div id="chat"><div class="bubble bot">Hi! Text a need like a victim would, e.g. <i>"Need water for 40 people near Karol Bagh, Delhi"</i>. If you set a map location below, it is sent like a shared WhatsApp location.</div></div>
+      <form id="chat-form"><input name="text" placeholder="Type a message..." autocomplete="off" required><button>Send</button></form>
+    </div>
+
     <div class="panel">
       <h2>Submit a request</h2>
       <p class="hint">1. Set the location (click the map, search an address, or use GPS). Selected: <b id="loc">not set</b></p>

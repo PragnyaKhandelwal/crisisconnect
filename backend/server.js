@@ -29,6 +29,7 @@ const readForm = req => new Promise(ok => {
   req.on('data', c => { s += c; if (s.length > 1e5) req.destroy(); });
   req.on('end', () => ok(Object.fromEntries(new URLSearchParams(s))));
 });
+const simHits = new Map();
 const clientIp = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 // Coordinator-only actions: dispatching and inventory changes.
 const deny = (req, res) => (auth.authorized(req) ? false : (json(res, 401, { error: 'Coordinator login required' }), true));
@@ -106,6 +107,18 @@ async function api(req, res, url) {
   if (url === '/api/login') {
     const r = auth.login(clientIp(req), (await readBody(req)).password);
     return r.ok ? json(res, 200, { token: r.token }) : json(res, r.status, { error: r.error });
+  }
+  if (url === '/api/sms-demo') { // in-browser simulator of the SMS/WhatsApp flow (same pipeline as the Twilio webhook)
+    const ip = clientIp(req), hits = (simHits.get(ip) || []).filter(t => Date.now() - t < 60e3);
+    if (hits.length >= 10) return json(res, 429, { error: 'Slow down: max 10 simulator messages per minute.' });
+    simHits.set(ip, [...hits, Date.now()]);
+    const b = await readBody(req);
+    const params = { Body: String(b.text || '').slice(0, 500), From: '', ...(b.lat != null && b.lng != null ? { Latitude: b.lat, Longitude: b.lng } : {}) };
+    const out = await sms.processMessage(params, {
+      triage,
+      create: async fields => { const r = store.add({ ...fields, channel: 'simulator' }); await done(); return snapshot().requests.find(x => x.id === r.id); },
+    });
+    return json(res, 200, { reply: out.message, requestId: out.request ? out.request.id : null });
   }
   if (url === '/api/sms') { // Twilio SMS / WhatsApp webhook
     const params = await readForm(req);

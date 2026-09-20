@@ -65,6 +65,12 @@ osrm.listen(0, () => {
       const smsReq = st.requests.find(x => x.channel === 'sms');
       assert.strictEqual(smsReq.contact, '***3210', 'phone number is masked');
       assert(!JSON.stringify(st).includes('9876543210'), 'full number never exposed');
+      // --- in-browser simulator uses the same pipeline (no Twilio signature needed)
+      let sim = await (await j('/sms-demo', { method: 'POST', body: { text: 'Need food for 25 people', lat: 28.6, lng: 77.2 } })).json();
+      assert(/request #\d+ received \(food, 25 people\)/.test(sim.reply) && sim.requestId, sim.reply);
+      sim = await (await j('/sms-demo', { method: 'POST', body: { text: 'Need food for 25 people' } })).json();
+      assert(/WHERE you are/.test(sim.reply) && !sim.requestId, 'simulator asks for location');
+      assert((await (await fetch(base + '/state')).json()).requests.some(x => x.channel === 'simulator'));
       console.log('FEATURE TESTS PASSED');
     } catch (e) { console.error(e); process.exitCode = 1; }
     server.close(); osrm.close(); require('fs').rmSync(process.env.DATA_FILE, { force: true }); process.exit();
