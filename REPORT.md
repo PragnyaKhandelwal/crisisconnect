@@ -174,14 +174,48 @@ PostgreSQL (Neon)  <-- write-through, loaded on boot
 - Twilio sandbox limits: sandbox membership expires and must be re-joined; production needs an approved sender.
 - Demand rules (2 L water per person etc.) are simple defaults, not agency-calibrated standards.
 
-## 12. Future work (roadmap)
-1. Optimal assignment with min-cost flow and multi-objective tuning.
-2. Volunteer app: task assignment, status flow (assigned, en route, delivered), live tracking.
-3. Per-user accounts, roles and an audit log.
-4. Duplicate and cluster detection, hotspot heat maps, forecasting of demand.
-5. Offline-friendly PWA for low-connectivity zones; voice-note intake with speech-to-text.
-6. Integration with official disaster data feeds and NGO inventories; resupply purchase-list generation.
-7. Human-calibrated scoring weights from real disaster-response guidelines, with feedback learning from coordinator overrides.
+## 12. Future scope
+
+The current version proves the core loop (intake, prioritization, allocation, dispatch) end to end. The roadmap below
+shows how it grows from a hackathon prototype into a production disaster-response platform.
+
+### Phase 1: Near term (next 1-3 months): make the core stronger
+| Item | What it adds | Why it matters |
+|---|---|---|
+| **Optimal allocation solver** | Replace the greedy allocator with min-cost-flow / assignment optimization and multi-objective tuning (lives served, travel time, fairness) | Moves from "good and explainable" to provably better plans |
+| **Per-user accounts, roles and audit log** | Coordinator, volunteer, depot manager and viewer roles; every dispatch recorded with who and when | Accountability and safe multi-team operation |
+| **Duplicate and fraud detection** | Merge repeated requests from the same area, flag suspicious or spam messages, coordinator verification step | Keeps the queue trustworthy under message floods |
+| **Volunteer mobile flow** | Task assignment, accept / decline, status (assigned, en route, delivered), proof of delivery | Closes the loop from plan to actual delivery |
+| **Delivery tracking and notifications** | Live status updates and SMS/WhatsApp confirmations back to the requester | Victims know help is coming |
+| **Self-hosted routing and geocoding** | Own OSRM and geocoder instances with caching | Reliability and no dependence on public demo servers |
+
+### Phase 2: Mid term (3-9 months): smarter and more accessible
+| Item | What it adds | Why it matters |
+|---|---|---|
+| **Offline-first PWA** | Installable app with offline queue and sync for low-connectivity zones | Disasters often knock out networks |
+| **Voice and image intake** | Voice notes with speech-to-text, photo of damage or injuries analysed by a vision model | Reaches people who cannot type; richer triage evidence |
+| **More channels and languages** | Telegram, Facebook Messenger, IVR phone line, wider regional-language support | Meets people where they already are |
+| **Demand forecasting** | Predict needs by area and time (for example water demand after a flood) from history and weather | Pre-position supplies before requests arrive |
+| **Hotspot and cluster analysis** | Heat maps, neighbourhood-level aggregation, "one truck serves five requests" route batching | Efficient use of vehicles and volunteers |
+| **Route optimization for fleets** | Multi-stop delivery routes (vehicle routing problem), road closures and flood-zone avoidance | Fewer trips, faster coverage |
+| **Feedback learning** | Learn scoring weights from coordinator overrides and post-event outcomes | The model improves with every disaster |
+
+### Phase 3: Long term (9-18 months): a platform for authorities and NGOs
+| Item | What it adds | Why it matters |
+|---|---|---|
+| **Government and NGO integration** | Connect to disaster-management data feeds, national alert systems and NGO inventory systems | One shared operating picture across agencies |
+| **Multi-region, multi-agency deployment** | Tenant separation, regional depots, hand-off between districts, high availability across instances | Scales from a district to a state or country |
+| **Resupply and procurement automation** | Auto-generate purchase lists and transfer orders when stock runs short; supplier and donor matching | Turns shortage alerts into action |
+| **Donor and volunteer marketplace** | Public portal for verified donations, skills-matched volunteers, transparent tracking | Channels public goodwill efficiently |
+| **Impact analytics and reporting** | Response-time, coverage and equity dashboards; automatic after-action reports | Evidence for funding and policy |
+| **Human-in-the-loop AI governance** | Bias and fairness audits, explanation logs, configurable policies per agency | Responsible, trusted use of AI in emergencies |
+| **Extended domains** | Pandemic response, refugee camps, food banks and everyday community aid | The same engine, wider social impact |
+
+### Why this scope is realistic
+The system is already modular (separate scoring, routing, triage, messaging, auth and storage modules), so each item above
+plugs into an existing boundary. Examples: a new intake channel is a new webhook next to `/api/sms`; a better solver
+replaces one function in the allocator; per-user auth replaces one module; the volunteer flow is a new view on the same
+database.
 
 ## 13. Impact and value
 - **Faster triage**: seconds instead of manual sorting; critical cases surface first.
@@ -192,7 +226,7 @@ PostgreSQL (Neon)  <-- write-through, loaded on boot
 
 ---
 
-## 14. Suggested slide deck (about 14 slides, 8-10 minutes)
+## 14. Suggested slide deck (about 16 slides, 8-10 minutes)
 
 | # | Slide | Content | Suggested visual |
 |---|---|---|---|
@@ -209,8 +243,9 @@ PostgreSQL (Neon)  <-- write-through, loaded on boot
 | 11 | Architecture and stack | Diagram and tech table (section 6) | Architecture diagram |
 | 12 | Security and reliability | Signed tokens, webhook signatures, masked numbers, durable writes, graceful fallbacks | Icon list |
 | 13 | Testing and lessons | Test levels, real-browser testing, three bugs found and fixed, durability test | Checklist |
-| 14 | Limitations and roadmap | Honest limits, next steps (optimal solver, volunteer app, per-user auth) | Roadmap timeline |
-| 15 | Closing / call to action | Live URL, repo, impact statement | QR code to live app |
+| 14 | Limitations | Honest limits: greedy (not proven optimal) allocator, single shared password, public routing servers, free-tier sleep | Short bullet list |
+| 15 | Future scope | Three phases: near term (optimal solver, per-user roles and audit, volunteer app, duplicate detection), mid term (offline PWA, voice and image intake, forecasting, fleet routing), long term (government/NGO integration, multi-region scale, procurement automation, impact analytics) | Three-phase roadmap timeline |
+| 16 | Closing / call to action | Live URL, repo, impact statement, "from chaos to coordinated relief" | QR code to live app |
 
 ## 15. Live demo script (3-4 minutes)
 1. **Open the dashboard** (wake the free server beforehand): map, pipeline strip, stats.
@@ -220,7 +255,7 @@ PostgreSQL (Neon)  <-- write-through, loaded on boot
 5. **Free-text in Hindi** from the web form to show multilingual triage.
 6. **Coordinator login**: show that dispatch and inventory controls appear only after login; edit a depot's stock and watch the plan change.
 7. **Approve and dispatch**: stock decreases; unmet requests remain flagged for resupply.
-8. **Close** with architecture and roadmap.
+8. **Close** with architecture, limitations and the future-scope roadmap.
 
 Prep checklist: open the site 1-2 minutes before starting (free-tier wake-up), have the WhatsApp chat ready, seed a scarce-supply scenario so the comparison shows a gap, know the coordinator password, keep a screenshot backup in the deck.
 
