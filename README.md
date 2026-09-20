@@ -19,6 +19,10 @@ Optional: `GROQ_API_KEY=... npm start` makes free-text triage use Groq (gpt-oss-
 3. Type "Need water - 40 people, children here", click the map, press *AI triage*: a live new incident appears (SSE).
 4. *Approve full plan* dispatches the global plan, depot stock drops, unmet requests remain flagged for resupply.
 
+## Extra demo features
+- **AI vs first-come-first-served panel**: same stock, two strategies; shows critical incidents fully served and average supply distance. Supplies are deliberately scarce in the seed scenario.
+- **Simulate +1 hour**: dispatches the top plan, resupplies depots slightly, and a new wave of requests arrives.
+
 ## How it works
 - Score (0-100) = category severity + urgency*8 + people*0.4 + distance + supply scarcity + waiting time → CRITICAL/HIGH/MEDIUM/LOW.
 - Global allocator walks requests by priority, serving each from the nearest depots (splitting across depots),

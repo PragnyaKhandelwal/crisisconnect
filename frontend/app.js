@@ -34,6 +34,11 @@ function render() {
     [depots.length, 'depots with resources'], [pct + '%', `demand covered (${stats.covered} full, ${stats.partial} partial)`],
   ].map(([b, s]) => `<div class="step"><b>${b}</b><span>${s}</span></div>`).join('');
 
+  const {ai, fifo} = data.compare, dl = (x, y, inv) => { const d = +(x - y).toFixed(1); return d === 0 ? '' : '<em class="' + ((d > 0) !== !!inv ? 'up' : 'dn') + '">' + (d > 0 ? '+' : '') + d + '</em>'; };
+  $('compare').innerHTML = '<h2>AI plan vs first-come-first-served</h2><table><tr><th></th><th>People helped</th><th>Critical fully served</th><th>Avg supply distance</th></tr>' +
+    '<tr><td>First-come-first-served</td><td>' + fifo.peopleHelped + '</td><td>' + fifo.criticalServed + ' / ' + fifo.criticalTotal + '</td><td>' + fifo.avgKm + ' km</td></tr>' +
+    '<tr class="ai"><td>CrisisConnect AI</td><td>' + ai.peopleHelped + dl(ai.peopleHelped, fifo.peopleHelped) + '</td><td>' + ai.criticalServed + ' / ' + ai.criticalTotal + dl(ai.criticalServed, fifo.criticalServed) + '</td><td>' + ai.avgKm + ' km' + dl(ai.avgKm, fifo.avgKm, true) + '</td></tr></table>';
+
   $('stats').innerHTML = [
     ['Open requests', stats.open], ['Critical', stats.critical], ['People waiting', stats.people],
     ['Unmet (need resupply)', stats.unmet], ['Dispatched', stats.dispatched],
@@ -101,6 +106,7 @@ $('filters').addEventListener('click', e => {
 });
 $('btn-demo').onclick = async () => flash(await post('/demo', { count: 50 }));
 $('btn-reset').onclick = async () => { selected = null; flash(await post('/reset')); };
+$('btn-sim').onclick = async () => flash(await post('/simulate'));
 $('btn-all').onclick = async () => {
   const res = await post('/dispatch-all'); await flash(res);
 };

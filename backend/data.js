@@ -4,10 +4,10 @@ const path = require('path');
 const FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 
 const seedDepots = () => [
-  { id: 'D1', name: 'Central Relief Depot', lat: 28.6139, lng: 77.2090, volunteers: 4, stock: { water: 900, food: 500, blankets: 160, medical: 3 } },
-  { id: 'D2', name: 'North Community Hall', lat: 28.7041, lng: 77.1025, volunteers: 3, stock: { water: 500, food: 300, blankets: 90, medical: 2 } },
-  { id: 'D3', name: 'East School Shelter', lat: 28.6280, lng: 77.3049, volunteers: 3, stock: { water: 600, food: 150, blankets: 200, medical: 1 } },
-  { id: 'D4', name: 'South Sports Complex', lat: 28.5300, lng: 77.2200, volunteers: 2, stock: { water: 400, food: 350, blankets: 80, medical: 2 } },
+  { id: 'D1', name: 'Central Relief Depot', lat: 28.6139, lng: 77.2090, volunteers: 4, stock: { water: 360, food: 200, blankets: 64, medical: 3 } },
+  { id: 'D2', name: 'North Community Hall', lat: 28.7041, lng: 77.1025, volunteers: 3, stock: { water: 200, food: 120, blankets: 36, medical: 2 } },
+  { id: 'D3', name: 'East School Shelter', lat: 28.6280, lng: 77.3049, volunteers: 3, stock: { water: 240, food: 60, blankets: 80, medical: 1 } },
+  { id: 'D4', name: 'South Sports Complex', lat: 28.5300, lng: 77.2200, volunteers: 2, stock: { water: 160, food: 140, blankets: 32, medical: 2 } },
 ];
 
 const state = { depots: seedDepots(), requests: [], seq: 100 };

@@ -52,3 +52,7 @@ aside { position:sticky; top:8px; max-height:calc(100vh - 16px); display:flex; f
 .req button { padding:4px 10px; font-size:12px; }
 
 @media (max-width:980px) { main { grid-template-columns:1fr; } aside { position:static; max-height:none; } #map { height:380px; } .depot { grid-template-columns:100px repeat(4,1fr); } }
+
+.compare { margin:0 20px 12px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px; overflow-x:auto; }
+.compare table { width:100%; border-collapse:collapse; } .compare th { text-align:left; color:var(--mute); font-weight:500; font-size:12px; } .compare td, .compare th { padding:5px 10px 5px 0; }
+.compare tr.ai td { color:var(--green); font-weight:600; } .compare em { font-style:normal; font-size:12px; margin-left:6px; padding:1px 6px; border-radius:6px; background:#0e1729; } .compare em.dn { color:var(--red); }

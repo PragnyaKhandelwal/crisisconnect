@@ -40,12 +40,12 @@ function score(req, depots, now = Date.now()) {
 
 // Global allocation: serve requests in priority order, each from the nearest depots with
 // remaining stock (splitting across depots). Stock is simulated so requests never double-book.
-function allocateAll(requests, depots, now = Date.now()) {
+function allocateAll(requests, depots, now = Date.now(), order = 'priority') {
   const stock = Object.fromEntries(depots.map(d => [d.id, { ...d.stock }]));
   const vols = Object.fromEntries(depots.map(d => [d.id, d.volunteers || 0]));
   const open = requests.filter(r => r.status === 'open')
     .map(r => ({ r, s: score(r, depots, now) }))
-    .sort((a, b) => b.s.score - a.s.score);
+    .sort(order === 'fifo' ? (a, b) => a.r.createdAt - b.r.createdAt : (a, b) => b.s.score - a.s.score);
 
   const byId = new Map();
   open.forEach(({ r, s }, i) => {
@@ -71,9 +71,21 @@ function allocateAll(requests, depots, now = Date.now()) {
     if (volunteer) plan.push(`Dispatch volunteer team from ${volunteer.depotName}`);
     if (left > 0) plan.push(`Shortfall: ${left} ${t.unit} - request resupply / escalate`);
     if (s.priority === 'CRITICAL') plan.push('Notify coordinator immediately');
-    byId.set(r.id, { ...s, rank: i + 1, need, allocated, shortfall: left, coverage, assignments, volunteer, plan, unit: t.unit, distanceKm: +farKm.toFixed(1) });
+    byId.set(r.id, { ...s, people: r.people, rank: i + 1, need, allocated, shortfall: left, coverage, assignments, volunteer, plan, unit: t.unit, distanceKm: +farKm.toFixed(1) });
   });
   return { byId, remaining: stock, volunteersLeft: vols };
 }
 
-module.exports = { TYPE_INFO, haversineKm, needed, score, tier, allocateAll };
+// Compare plan quality: people helped, critical incidents fully served, avg supply distance.
+function metrics(plan) {
+  const v = [...plan.byId.values()];
+  const served = v.filter(x => x.allocated > 0);
+  return {
+    peopleHelped: Math.round(v.reduce((n, x) => n + x.people * (x.allocated / x.need), 0)),
+    criticalServed: v.filter(x => x.priority === 'CRITICAL' && x.coverage === 'covered').length,
+    criticalTotal: v.filter(x => x.priority === 'CRITICAL').length,
+    avgKm: served.length ? +(served.reduce((n, x) => n + x.distanceKm, 0) / served.length).toFixed(1) : 0,
+  };
+}
+
+module.exports = { metrics, TYPE_INFO, haversineKm, needed, score, tier, allocateAll };

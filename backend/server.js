@@ -3,7 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const store = require('./data');
-const { TYPE_INFO, allocateAll } = require('./prioritizer');
+const { TYPE_INFO, allocateAll, metrics } = require('./prioritizer');
 const { triage } = require('./triage');
 
 const { state } = store;
@@ -34,7 +34,9 @@ function snapshot() {
   const open = rows.filter(r => r.status === 'open');
   const by = f => open.filter(f).length;
   const need = open.reduce((n, r) => n + r.need, 0), got = open.reduce((n, r) => n + r.allocated, 0);
+  const fifo = allocateAll(state.requests, state.depots, now, 'fifo');
   return {
+    compare: { ai: metrics(plan), fifo: metrics(fifo) },
     requests: rows,
     depots: state.depots.map(d => ({ ...d, remaining: plan.remaining[d.id], volunteersLeft: plan.volunteersLeft[d.id] })),
     stats: {
@@ -102,6 +104,14 @@ async function api(req, res, url) {
     const b = await readBody(req);
     store.generateDemo(Math.min(200, parseInt(b.count, 10) || 50)); broadcast();
     return json(res, 200, { ok: true });
+  }
+  if (url === '/api/simulate') { // advance one hour: dispatch the plan for top incidents, resupply, new requests arrive
+    const plan = allocateAll(state.requests, state.depots);
+    let n = 0;
+    for (const [id, p] of plan.byId) { if (n >= 10) break; if (p.allocated > 0 && commit(plan, id)) n++; }
+    state.depots.forEach(d => { d.stock.water += 60; d.stock.food += 40; d.stock.blankets += 10; if (Math.random() < .3) d.stock.medical++; });
+    store.generateDemo(8 + Math.floor(Math.random() * 6)); store.save(); broadcast();
+    return json(res, 200, { ok: true, dispatched: n });
   }
   if (url === '/api/reset') { store.reset(true); broadcast(); return json(res, 200, { ok: true }); }
   if (url === '/api/dispatch-all') {
